@@ -1,63 +1,89 @@
+use regex::regex;
 use thiserror::Error;
-
-#[derive(Debug, Copy, Clone)]
-pub struct Span {
-    column: usize,
-}
 
 #[derive(Error, Debug)]
 pub enum LexError {
-    #[error("Unexpected token at {span:?}")]
-    UnexpectedCharacter { span: Span },
+    #[error("Unexpected token")]
+    UnexpectedCharacter,
 }
 
 #[derive(Debug)]
-pub enum Token {
-    Number { value: f64, span: Span },
-    String { value: String, span: Span },
-    PercentSign { span: Span },
-    OpenSquareBracket { span: Span },
-    CloseSquareBracket { span: Span },
-    OpenQuoteMark { span: Span },
-    CloseQuoteMark { span: Span },
-    Comma { span: Span },
-    UndeterminedValue { span: Span },
-    Course { name: String, span: Span },
+pub enum TokenType {
+    Number { value: f64 },
+    String { value: String },
+    PercentSign,
+    OpenSquareBracket,
+    CloseSquareBracket,
+    OpenQuoteMark,
+    CloseQuoteMark,
+    Comma,
+    UndeterminedValue,
+    Course { name: String },
 }
 
-pub fn lex(input: &str) -> Result<Vec<Token>, LexError> {
-    let mut is_string_open = false;
-    let mut string_value = "".to_owned();
+struct Scanner {
+    start: u64,
+    line: u64,
+    current: u64,
 
-    let cursor = Span { column: 0 };
-    let tokens = input
-        .split_inclusive([' ', '"'])
-        .filter_map(|c| match c.trim() {
-            "course" => Some(Token::Course {
-                name: "Test".to_owned(),
-                span: cursor,
-            }),
-            "\"" => {
-                if is_string_open {
-                    is_string_open = false;
-                    Some(Token::CloseQuoteMark { span: cursor })
-                } else {
-                    is_string_open = true;
-                    Some(Token::OpenQuoteMark { span: cursor })
-                }
+    source: String,
+    tokens: Vec<Token>,
+}
+
+#[derive(Debug)]
+struct Token {
+    type_: TokenType,
+    text: String,
+    literal: u64, // TODO: Change type of literal
+    line: u64,
+}
+
+impl Scanner {
+    fn new(source: &str) -> Self {
+        return Self {
+            start: 0,
+            line: 0,
+            current: 0,
+            source: source.into(),
+            tokens: vec![],
+        };
+    }
+
+    fn scan_tokens(&mut self) {
+        while !self.is_at_end() {
+            self.start = self.current;
+            self.scan_token();
+        }
+    }
+
+    fn scan_token(&mut self) {
+        let c = self.advance();
+        if let c = c.unwrap() {
+            let r = regex!(r"[a-zA-Z_][a-zA-Z_0-9]*");
+            if r.is_match(&c.to_string()) {
+                println!("{:?}", c);
             }
-            _ => {
-                if is_string_open {
-                    string_value += c;
-                }
-                Some(Token::String {
-                    value: string_value.clone(),
-                    span: cursor,
-                })
-            }
+        }
+    }
+
+    // TODO: Change type of literal
+    fn add_token(&mut self, type_: TokenType, literal: u64) {
+        self.tokens.push(Token {
+            type_,
+            text: "Test".into(),
+            literal: 0,
+            line: self.line,
         })
-        .collect();
-    Ok(tokens)
+    }
+
+    fn advance(&mut self) -> Option<char> {
+        self.current += 1;
+        return self.source.chars().nth(self.current as usize);
+    }
+
+    fn is_at_end(&self) -> bool {
+        return self.current as usize >= self.source.len();
+    }
 }
 
 #[cfg(test)]
@@ -67,8 +93,8 @@ mod tests {
     #[test]
     fn parse_basic_line() {
         let input = "course \"Test Class\"";
-        let res = lex(input).unwrap();
-        println!("{:?}", res);
-        assert_eq!(res.len(), 4);
+        let mut s = Scanner::new(input);
+        s.scan_tokens();
+        println!("{:?}", s.tokens);
     }
 }
